@@ -13,4 +13,5 @@ public class UserCreateRequest {
     private String managerId; // Can be null if role is ADMIN or MANAGER
     private String department;
     private String specialKey;
+    private Double budgetAmount;
 }

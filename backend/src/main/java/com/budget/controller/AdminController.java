@@ -26,9 +26,9 @@ public class AdminController {
     }
 
     @PostMapping("/create-user")
-    public ResponseEntity<?> createUser(@RequestBody UserCreateRequest request) {
+    public ResponseEntity<?> createUser(@RequestBody UserCreateRequest request, @RequestHeader(value = "X-User-Id", required = false) String adminId) {
         try {
-            User user = adminService.createUser(request);
+            User user = adminService.createUser(request, adminId);
             return ResponseEntity.ok("User created successfully with ID: " + user.getId());
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

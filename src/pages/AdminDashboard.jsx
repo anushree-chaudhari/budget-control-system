@@ -31,7 +31,7 @@ const AdminDashboard = () => {
   
   // Forms
   const [budgetForm, setBudgetForm] = useState({ managerId: '', totalBudget: '', remarks: '' });
-  const [userForm, setUserForm] = useState({ name: '', role: 'employee', department: 'IT', password: '', specialKey: '' });
+  const [userForm, setUserForm] = useState({ name: '', email: '', role: 'employee', department: 'IT', password: '', specialKey: '', budgetAmount: '' });
 
   const fetchAll = async () => {
     try {
@@ -77,7 +77,7 @@ const AdminDashboard = () => {
   ];
 
   const openAssignBudget = () => { setModalType('assignBudget'); setBudgetForm({ managerId: '', totalBudget: '', remarks: '' }); setModalOpen(true); };
-  const openAddUser = () => { setModalType('addUser'); setUserForm({ name: '', role: 'employee', department: 'IT', password: '', specialKey: '' }); setModalOpen(true); };
+  const openAddUser = () => { setModalType('addUser'); setUserForm({ name: '', email: '', role: 'employee', department: 'IT', password: '', specialKey: '', budgetAmount: '' }); setModalOpen(true); };
 
   const saveBudget = async () => {
     if (!budgetForm.managerId || !budgetForm.totalBudget || !budgetForm.remarks) return alert("Select Manager, specify amount, and provide a reason");
@@ -98,10 +98,11 @@ const AdminDashboard = () => {
 
   const saveUser = async () => {
     try {
-      const payload = { ...userForm, role: userForm.role.toUpperCase() };
+      const payload = { ...userForm, role: userForm.role.toUpperCase(), budgetAmount: parseFloat(userForm.budgetAmount) || 0 };
       await API.post('/admin/create-user', payload);
       setModalOpen(false);
       fetchAll();
+      alert("User created successfully and email sent!");
     } catch (err) {
       alert("Failed to add user: " + (err.response?.data || err.message));
     }
@@ -441,6 +442,7 @@ const AdminDashboard = () => {
                   <p className="page-subtitle" style={{marginBottom:'1rem'}}>Admin UI automatically bypasses typical signup checks & ID sequences are omitted here manually if needed.</p>
                   <div className="form-row">
                     <div className="form-group"><label className="form-label">Full Name</label><input className="form-input" placeholder="Full name" value={userForm.name} onChange={e => setUserForm({...userForm, name: e.target.value})} /></div>
+                    <div className="form-group"><label className="form-label">Email</label><input className="form-input" type="email" placeholder="Email Address" value={userForm.email} onChange={e => setUserForm({...userForm, email: e.target.value})} /></div>
                   </div>
                   <div className="form-row">
                     <div className="form-group"><label className="form-label">Role</label>
@@ -457,6 +459,9 @@ const AdminDashboard = () => {
                     )}
                   </div>
                   <div className="form-group"><label className="form-label">Password</label><input className="form-input" type="password" placeholder="Set a password" value={userForm.password} onChange={e => setUserForm({...userForm, password: e.target.value})} /></div>
+                  {userForm.role === 'manager' && (
+                    <div className="form-group"><label className="form-label">Initial Budget Amount (Optional)</label><input className="form-input" type="number" placeholder="e.g. 500000" value={userForm.budgetAmount} onChange={e => setUserForm({...userForm, budgetAmount: e.target.value})} /></div>
+                  )}
                   {['admin', 'manager'].includes(userForm.role) && (
                     <div className="form-group"><label className="form-label">Special Key (Optional)</label><input className="form-input" type="text" placeholder="Auth Key" value={userForm.specialKey} onChange={e => setUserForm({...userForm, specialKey: e.target.value})} /></div>
                   )}

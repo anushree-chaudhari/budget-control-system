@@ -3,6 +3,8 @@ package com.budget.service;
 import com.budget.dto.UserCreateRequest;
 import com.budget.entity.*;
 import com.budget.repository.*;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,21 +20,30 @@ public class AdminService {
     private final AdminBudgetRepository adminBudgetRepository;
     private final RequestHistoryRepository requestHistoryRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JavaMailSender mailSender;
 
-    public AdminService(UserRepository userRepository, RequestRepository requestRepository, BudgetRepository budgetRepository, AdminBudgetRepository adminBudgetRepository, RequestHistoryRepository requestHistoryRepository, PasswordEncoder passwordEncoder) {
+    public AdminService(UserRepository userRepository, RequestRepository requestRepository, BudgetRepository budgetRepository, AdminBudgetRepository adminBudgetRepository, RequestHistoryRepository requestHistoryRepository, PasswordEncoder passwordEncoder, JavaMailSender mailSender) {
         this.userRepository = userRepository;
         this.requestRepository = requestRepository;
         this.budgetRepository = budgetRepository;
         this.adminBudgetRepository = adminBudgetRepository;
         this.requestHistoryRepository = requestHistoryRepository;
         this.passwordEncoder = passwordEncoder;
+        this.mailSender = mailSender;
     }
 
     @Transactional
-    public User createUser(UserCreateRequest dto) {
+    public User createUser(UserCreateRequest dto, String adminId) {
         if (userRepository.findByEmail(dto.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
         }
+        
+        if (dto.getRole() == Role.MANAGER && dto.getDepartment() != null && !dto.getDepartment().trim().isEmpty()) {
+            if (userRepository.existsByRoleAndDepartment(Role.MANAGER, dto.getDepartment())) {
+                throw new RuntimeException("A manager already exists for this department");
+            }
+        }
+        
         User user = new User();
         
         String prefix = "emp";
@@ -51,7 +62,8 @@ public class AdminService {
         
         user.setName(dto.getName());
         user.setEmail(dto.getEmail());
-        user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        String rawPassword = dto.getPassword();
+        user.setPassword(passwordEncoder.encode(rawPassword));
         user.setRole(dto.getRole());
         user.setManagerId(dto.getManagerId());
         
@@ -60,7 +72,34 @@ public class AdminService {
         }
         
         user.setSpecialKey(dto.getSpecialKey());
-        return userRepository.save(user);
+        User savedUser = userRepository.save(user);
+
+        if (dto.getRole() == Role.MANAGER && dto.getBudgetAmount() != null && dto.getBudgetAmount() > 0) {
+            if (adminId == null || adminId.isEmpty()) {
+                AdminBudget defaultAdminBudget = adminBudgetRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new RuntimeException("No admin budget found to assign from"));
+                adminId = defaultAdminBudget.getAdminId();
+            }
+            assignBudget(adminId, savedUser.getUserId(), dto.getBudgetAmount());
+        }
+
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(savedUser.getEmail());
+            message.setSubject("Your Account Details");
+            message.setText("Hello " + savedUser.getName() + ",\n\n"
+                    + "Your account has been created!\n\n"
+                    + "Email: " + savedUser.getEmail() + "\n"
+                    + "Password: " + rawPassword + "\n"
+                    + "Role: " + (savedUser.getRole().name().charAt(0) + savedUser.getRole().name().substring(1).toLowerCase()) + "\n"
+                    + (savedUser.getDepartment() != null ? "Department: " + savedUser.getDepartment() + "\n" : "")
+                    + "\nThanks,\nAdmin");
+            mailSender.send(message);
+        } catch (Exception e) {
+            System.err.println("Failed to send welcome email: " + e.getMessage());
+        }
+
+        return savedUser;
     }
 
     @Transactional
